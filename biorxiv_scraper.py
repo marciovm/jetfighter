@@ -13,7 +13,7 @@ try:
     from bs4 import BeautifulSoup
     iiif_biorxiv = importlib.import_module('iiif-biorxiv.app')
 except:
-    print('Calculations will fail if this is a worker')
+    print('In scraper -- calculations will fail if this is a worker')
 
 def baseurl(code):
     return 'https://www.biorxiv.org/content/10.1101/{}'.format(code)

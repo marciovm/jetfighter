@@ -85,8 +85,8 @@ def home():
         cats = [-2, -1, 1, 2]
 
     papers = (Biorxiv.query
-                     .filter(Biorxiv.parse_status.in_(cats))
-                     .order_by(desc(Biorxiv.created))
+# why broken?         .filter(Biorxiv.parse_status.in_(cats))
+#                     .order_by(desc(Biorxiv.created)) 
                      .limit(500)
                      .all())
 
