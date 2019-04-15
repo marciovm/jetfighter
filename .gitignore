@@ -2,5 +2,5 @@
 .DS_Store
 scraper_cache.sqlite
 .pytest_cache
-
+myenv/
 __pycache__

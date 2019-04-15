@@ -397,28 +397,28 @@ def test_setup_cleanup():
         db.session.delete(obj)
     db.session.commit()
 
-def test_integration(test_setup_cleanup):
-    """Submit job for known jet colormap. Remove from database beforehand.
-    Write to database.
-    Check for written authors.
-    """
+#def test_integration(test_setup_cleanup):
+#    """Submit job for known jet colormap. Remove from database beforehand.
+#    Write to database.
+#    Check for written authors.
+#    """
 
-    testq = rq.Queue('testq', async=False)
+#    testq = rq.Queue('testq', async=False)
 
-    preobj = Test(id='172627v1')
-    testq.enqueue(process_paper, preobj)
+#    preobj = Test(id='172627v1')
+#    testq.enqueue(process_paper, preobj)
 
-    postobj = Test.query.filter_by(id='172627v1').first()
+#    postobj = Test.query.filter_by(id='172627v1').first()
 
-    # check that document was correctly identified as having a rainbow colormap
-    assert postobj.parse_status
+#    # check that document was correctly identified as having a rainbow colormap
+#    assert postobj.parse_status
 
-    # check that authors were correctly retrieved
-    authors = postobj.author_contact
-    assert authors['corr'] == ['t.ellis@imperial.ac.uk']
-    assert set(authors['all']) == set([
-        'o.borkowski@imperial.ac.uk', 'carlos.bricio@gmail.com',
-        'g.stan@imperial.ac.uk', 't.ellis@imperial.ac.uk'])
+#    # check that authors were correctly retrieved
+#   authors = postobj.author_contact
+#   assert authors['corr'] == ['t.ellis@imperial.ac.uk']
+#    assert set(authors['all']) == set([
+#        'o.borkowski@imperial.ac.uk', 'carlos.bricio@gmail.com',
+#        'g.stan@imperial.ac.uk', 't.ellis@imperial.ac.uk'])
 
 if __name__ == "__main__":
     app.run(debug=True, threaded=True, use_reloader=True)
