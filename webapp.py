@@ -60,7 +60,9 @@ app.config['DEBUG'] = os.environ.get('DEBUG', 0)
 # web app login, gates sending email 
 app.config['WEB_PASSWORD'] = os.environ['WEB_PASSWORD']
 
+# encryption key
 app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
+
 csrf = CSRFProtect(app)
 
 tweepy_auth = tweepy.OAuthHandler(
@@ -353,7 +355,7 @@ def parse_tweet(t, db=db, objclass=Biorxiv, verbose=True):
 def retrieve_timeline():
     """Picks up current timeline (for testing)
     """
-    for t in tweepy_api.user_timeline(screen_name='biorxivpreprint', count=1000,
+    for t in tweepy_api.user_timeline(screen_name='biorxivpreprint', count=100,
             trim_user='True', include_entities=True, tweet_mode='extended'):
         parse_tweet(t)
 
@@ -386,17 +388,17 @@ def process_paper(obj):
 
 
 ## NOTE: NEEDS WORK
-@pytest.fixture()
-def test_setup_cleanup():
+#@pytest.fixture()
+#def test_setup_cleanup():
     # should only be one, but... just in case
-    for obj in Test.query.filter_by(id='172627v1').all():
-        db.session.delete(obj)
-    db.session.commit()
+#    for obj in Test.query.filter_by(id='172627v1').all():
+#        db.session.delete(obj)
+#    db.session.commit()
 
     # Delete temporary row
-    for obj in Test.query.filter_by(id='172627v1').all():
-        db.session.delete(obj)
-    db.session.commit()
+#    for obj in Test.query.filter_by(id='172627v1').all():
+#        db.session.delete(obj)
+#    db.session.commit()
 
 #def test_integration(test_setup_cleanup):
 #    """Submit job for known jet colormap. Remove from database beforehand.
