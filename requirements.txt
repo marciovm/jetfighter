@@ -10,6 +10,7 @@ Flask-RQ2
 Flask-Mail
 Flask-table
 flask-wtf
+Flask-Migrate
 
 pymysql
 

@@ -9,7 +9,7 @@ import itertools
 
 import flask
 from flask_rq2 import RQ
-from flask_mail import Mail, Message
+#from flask_mail import Mail, Message
 from flask_wtf.csrf import CSRFProtect, CSRFError
 
 from sqlalchemy import desc
@@ -21,7 +21,7 @@ import pytest
 
 from models import db, Biorxiv, Test
 from biorxiv_scraper import find_authors, find_date, count_pages
-from detect_cmap import detect_rainbow_from_iiif
+#from detect_cmap import detect_rainbow_from_iiif
 import utils
 
 # Reads env file into environment, if found
@@ -57,6 +57,7 @@ app.config['TWITTER_SECRET'] = os.environ['TWITTER_SECRET']
 
 app.config['DEBUG'] = os.environ.get('DEBUG', 0)
 
+# web app login, gates sending email 
 app.config['WEB_PASSWORD'] = os.environ['WEB_PASSWORD']
 
 app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
@@ -68,7 +69,7 @@ tweepy_auth.set_access_token(
     app.config['TWITTER_KEY'], app.config['TWITTER_SECRET'])
 tweepy_api = tweepy.API(tweepy_auth)
 
-mail = Mail(app)
+#mail = Mail(app)
 
 @app.route('/')
 def home():
