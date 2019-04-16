@@ -15,12 +15,11 @@ from flask_wtf.csrf import CSRFProtect, CSRFError
 from sqlalchemy import desc
 
 import tweepy
-
-import click
+import click 
 import pytest
 
 from models import db, Biorxiv, Test
-from biorxiv_scraper import find_authors, find_date, count_pages
+from biorxiv_scraper import find_authors, find_date, count_pages, download_biorxiv_PDF_from_ID
 #from detect_cmap import detect_rainbow_from_iiif
 import utils
 
@@ -75,18 +74,18 @@ tweepy_api = tweepy.API(tweepy_auth)
 
 @app.route('/')
 def home():
-    """Renders the website with current results
+    """Renders the website with parsed preprints
     """
 
     cats = flask.request.args.get('categories')
     if cats:
         cats = [int(x) for x in cats.split(',')]
     else:
-        cats = [-2, -1, 1, 2]
+        cats = [-2, -1, 0, 1, 2] # category 0 is not yet parsed (?)
 
     papers = (Biorxiv.query
-# why broken?         .filter(Biorxiv.parse_status.in_(cats))
-#                     .order_by(desc(Biorxiv.created)) 
+                     .filter(Biorxiv.parse_status.in_(cats))
+                     .order_by(desc(Biorxiv.created)) 
                      .limit(500)
                      .all())
 
@@ -307,7 +306,7 @@ def handle_csrf_error(e):
 def parse_tweet(t, db=db, objclass=Biorxiv, verbose=True):
     """Parses tweets for relevant data,
        writes each paper to the database,
-       dispatches a processing job to the processing queue (rq)
+       dispatches a processing job to the processing queue (rq) [broken?]
     """
     try:
         text = t.extended_tweet["full_text"]
@@ -347,13 +346,15 @@ def parse_tweet(t, db=db, objclass=Biorxiv, verbose=True):
     db.session.commit()
 
     # don't reprocess papers that have already been entered
-    if obj.title is None:
+    if obj.title is None: # if title is present, paper has been processed? Broken?
         process_paper.queue(obj)
 
 
 @app.cli.command()
 def retrieve_timeline():
-    """Picks up current timeline (for testing)
+    """
+    Picks up current timeline (for testing)
+    Updates bioRxiv table with preprints
     """
     for t in tweepy_api.user_timeline(screen_name='biorxivpreprint', count=100,
             trim_user='True', include_entities=True, tweet_mode='extended'):
@@ -362,19 +363,24 @@ def retrieve_timeline():
 
 @rq.job(timeout='30m')
 def process_paper(obj):
-    """Processes paper starting from url/code
+    """
+    Processes preprint starting from bioRxiv preprint object
 
     1. get object, find page count and posted date
-    3. detect rainbow
-    3. if rainbow, get authors
-    4. update database entry with colormap detection and author info
+    3. detect revision suggestion
+    3. if suggestion found, queue test email
+    4. update database entry
     """
+    print('processing: ' + obj.id)
     obj = db.session.merge(obj)
+    download_biorxiv_PDF_from_ID(obj.id)
+    
     if obj.page_count == 0:
         obj.page_count = count_pages(obj.id)
     if obj.posted_date == "":
         obj.posted_date = find_date(obj.id)
-    obj.pages, obj.parse_data = detect_rainbow_from_iiif(obj.id, obj.page_count)
+    
+    #obj.pages, obj.parse_data = detect_rainbow_from_iiif(obj.id, obj.page_count) 
 
     if len(obj.pages) > 0:
         obj.parse_status = 1

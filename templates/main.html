@@ -3,7 +3,7 @@
 {% block content %}
 
 <nav class="navbar navbar-expand-lg navbar-dark sticky-top bg-dark rounded-bottom" style="margin:0px; margin-bottom:20px;">
-  <a class="navbar-brand" href="#">Preprints analyzed</a>
+  <a class="navbar-brand" href="#">Known Preprints</a>
 
   <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarText" aria-controls="navbarText" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
@@ -30,20 +30,6 @@
         {% endif %}
 
         <!-- <a class="nav-link" href="?categories=0,1">Only run</a> -->
-        <li class="navbar-text nav-item">
-          <input id="filterbox" class="form-control mr-sm-2" type="search" placeholder="Filter rows"
-                 data-toggle="tooltip" data-placement="top" data-html="true" title="Filters currently loaded table (i.e. does <i>not</i> query database)">
-        </li>
-        <li class="navbar-text nav-item">
-            <label data-toggle="tooltip" data-placement="top" title="Rows per page">
-              <select id="pagebox" name="jfTable_length" aria-controls="jfTable" class="form-control">
-                <option value="10">10</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-            </label>
-        </li>
     </ul>
   </div>
 
@@ -56,8 +42,9 @@
 <table id="jfTable" class="table display stripe">
   <thead>
     <tr class="text-center">
-      <th>View Results</th>
+      <th>ID</th>
       <th>Title</th>
+      <th>Pages</th>
       <th>Date Posted</th>
       <th>Paper Link</th>
       <th>Parse Status</th>
@@ -71,9 +58,9 @@
   <tbody>
   {% for p in papers %}
     <tr id="{{ p.id }}">
-      <td class="details-control align-middle"></td>
-
+		<td class="align-middle">{{ p.id }}</td>
         <td class="align-middle">{{ p.title }}</td>
+        <td class="text-center align-middle">{{ p.page_count }}</td>
         <td class="text-center align-middle">{{ p.posted_date }}</td>
 
         <td class="text-center align-middle">

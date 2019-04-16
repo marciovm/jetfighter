@@ -3,4 +3,7 @@
 scraper_cache.sqlite
 .pytest_cache
 myenv/
+PDFs/
 __pycache__
+shell_helper.py
+
