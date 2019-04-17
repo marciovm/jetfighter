@@ -61,7 +61,6 @@ def download_biorxiv_PDF_from_ID(paper_id):
     file = open("./PDFs/" + paper_id + ".pdf", 'wb')
     file.write(response.read())
     file.close()
-    print("Downloaded " + paper_id)
         
 def count_pages(paper_id):
     """

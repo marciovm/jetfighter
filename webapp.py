@@ -371,7 +371,7 @@ def process_paper(obj):
     3. if suggestion found, queue test email
     4. update database entry
     """
-    print('processing: ' + obj.id)
+    print('Processing: ' + obj.id)
     obj = db.session.merge(obj)
     download_biorxiv_PDF_from_ID(obj.id)
     
@@ -379,16 +379,13 @@ def process_paper(obj):
         obj.page_count = count_pages(obj.id)
     if obj.posted_date == "":
         obj.posted_date = find_date(obj.id)
-    
-    #obj.pages, obj.parse_data = detect_rainbow_from_iiif(obj.id, obj.page_count) 
-
-    if len(obj.pages) > 0:
+    if obj.author_contact is None:
+        obj.author_contact = find_authors(obj.id)['corr'][0] # TODO: grab all corresponding author(s)
+    if obj.page_count > 0:
         obj.parse_status = 1
-        if obj.author_contact is None:
-            obj.author_contact = find_authors(obj.id)
     else:
-        obj.parse_status = -1
-
+        obj.parse_status = -1    
+    
     db.session.merge(obj)
     db.session.commit()
 

@@ -10,25 +10,12 @@
   </button>
 
   <div class="collapse navbar-collapse" id="navbarText">
-    <ul class="navbar-nav mr-auto nav-fill w-100">
-      <li class="navbar-text nav-item">
-          <a class="nav-link" href="/">All</a>
-        </li>
-        <li class="navbar-text nav-item">
-          <a class="nav-link" href="?categories=1,2">Category 1 (n/a)
-          </a>
-        </li>
-        <li class="navbar-text nav-item">
-          <a class="nav-link" href="?categories=-1,-2">Category 2 (n/a)
-          </a>
-        </li>
-
+    <ul class="navbar-nav mr-auto nav-fill w-100">    
         {% if session['logged_in'] %}
         <li class="navbar-text nav-item">
           <a class="nav-link" href="/rerun">Rerun missing</a>
         </li>
         {% endif %}
-
         <!-- <a class="nav-link" href="?categories=0,1">Only run</a> -->
     </ul>
   </div>
@@ -44,6 +31,7 @@
     <tr class="text-center">
       <th>ID</th>
       <th>Title</th>
+      <th>Contact</th>
       <th>Pages</th>
       <th>Date Posted</th>
       <th>Paper Link</th>
@@ -60,6 +48,7 @@
     <tr id="{{ p.id }}">
 		<td class="align-middle">{{ p.id }}</td>
         <td class="align-middle">{{ p.title }}</td>
+        <td class="align-middle">{{ p.author_contact }}</td>
         <td class="text-center align-middle">{{ p.page_count }}</td>
         <td class="text-center align-middle">{{ p.posted_date }}</td>
 
