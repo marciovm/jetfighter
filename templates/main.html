@@ -49,7 +49,7 @@
 		<td class="align-middle">{{ p.id }}</td>
         <td class="align-middle">{{ p.title }}</td>
         <td class="align-middle">{{ p.author_contact }}</td>
-        <td class="text-center align-middle">{{ p.page_count }}</td>
+        <td class="text-center alig n-middle">{{ p.page_count }}</td>
         <td class="text-center align-middle">{{ p.posted_date }}</td>
 
         <td class="text-center align-middle">
@@ -60,9 +60,9 @@
 
         <td class="text-center align-middle">
           {% if p.parse_status > 0 %}
-          <i class="far fa-eye-slash detected"></i>
+          <i class="far fa-check-circle"></i>
           {% elif p.parse_status < 0 %}
-          <i class="far fa-check-circle notdetected"></i>
+          <i class="fas fa-exclamation-triangle"></i>
           {% endif %}
         </td>
 

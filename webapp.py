@@ -8,7 +8,7 @@ import math
 import itertools
 
 import flask
-from flask_rq2 import RQ
+#from flask_rq2 import RQ
 #from flask_mail import Mail, Message
 from flask_wtf.csrf import CSRFProtect, CSRFError
 
@@ -35,8 +35,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 db.init_app(app)
 
 # For job handling
-app.config['RQ_REDIS_URL'] = os.environ['RQ_REDIS_URL']
-rq = RQ(app)
+# app.config['RQ_REDIS_URL'] = os.environ['RQ_REDIS_URL']
+# rq = RQ(app)
 
 # For monitoring papers (until Biorxiv provides a real API)
 app.config['TWITTER_APP_KEY'] = os.environ['TWITTER_APP_KEY']
@@ -81,7 +81,9 @@ def home():
     if cats:
         cats = [int(x) for x in cats.split(',')]
     else:
-        cats = [-2, -1, 0, 1, 2] # category 0 is not yet parsed (?)
+        cats = [-2, -1, 0, 1, 2] #  0: not yet parsed
+                                 #  1: success
+                                 # -1: failed
 
     papers = (Biorxiv.query
                      .filter(Biorxiv.parse_status.in_(cats))
@@ -91,185 +93,6 @@ def home():
 
     return flask.render_template('main.html', app=app, papers=papers)
 
-@app.route('/pages/<string:paper_id>')
-def pages(paper_id, prepost=1, maxshow=10):
-    """Pages to show for preview
-    1-index I think...
-    """
-    record = Biorxiv.query.filter_by(id=paper_id).first()
-    if not record:
-        return flask.jsonify({})
-
-    pages = record.pages
-    page_count = record.page_count
-
-    # Unused, reconsider later...?
-    # # find pages before and after (requested or default)
-    # try:
-    #     prepost = math.fabs(int(flask.request.args.get('prepost')))
-    # except:
-    #     pass
-    # try:
-    #     maxshow = math.fabs(int(flask.request.args.get('maxshow')))
-    # except:
-    #     pass
-
-    # if requested, show all pages with each page's status
-    try:
-        all_pages = flask.request.args.get('all') == "1"
-    except:
-        all_pages = False
-
-    show_pgs = {}
-    if all_pages:
-        for i in range(1, page_count + 1):
-            if i in pages:
-                show_pgs[i] = True
-            else:
-                show_pgs[i] = False
-    elif pages:
-        # add all detected pages up to maxshow count
-        show_pgs = {i:True for i in pages[:maxshow]}
-        # pad with undetected pages
-        for i in pages:
-            for j in range(i - prepost, min(i + prepost + 1, page_count)):
-                if len(show_pgs) < maxshow:
-                    if j not in pages:
-                        show_pgs[j] = False
-                else:
-                    break
-    else:
-        show_pgs = {i:False for i in range(1, maxshow + 1)}
-
-    return flask.jsonify({'pdf_url': record.pdf_url, 'pages': show_pgs})
-
-@app.route('/detail/<string:paper_id>')
-def show_details(paper_id, prepost=1, maxshow=10):
-    """
-    """
-    record = Biorxiv.query.filter_by(id=paper_id).first()
-    if not record:
-        flask.flash('Sorry! Results with that ID have not been found')
-        return flask.redirect('/')
-
-    # Format colormap for viewing
-    df_cm = record.parse_data
-    if df_cm.size > 0:
-        df_cm['fn'] = df_cm['fn'].astype(str)
-        if df_cm['fn'].str.contains('-').any():
-            df_cm['fn'] = df_cm['fn'].str.split('-', n=1).str[1]
-        df_cm['pct_cm'] = df_cm['pct_cm'] * 100
-        df_cm['pct_page'] = df_cm['pct_page'] * 100
-    df_cm = df_cm[['cm', 'fn', 'pct_cm', 'pct_page']]
-    df_cm.rename(columns={
-        'fn': 'Page',
-        'cm': 'Colormap Abbreviation',
-        'pct_cm': 'Colormap Coverage (%)',
-        'pct_page': 'Page Coverage (%)',
-    }, inplace=True)
-
-    cm_table = df_cm.to_html(bold_rows=False, index=False, border=0,
-        table_id="cm_parse_table", float_format='%.2f')
-
-    # display images
-    return flask.render_template('detail.html',
-        paper_id=record.id, title=record.title, url=record.url,
-        pages=", ".join([str(p) for p in record.pages]),
-        parse_status=record.parse_status, email_sent=record.email_sent,
-        cm_parse_html=cm_table
-        )
-
-@app.route('/notify/<string:paper_id>', methods=['POST'])
-@app.route('/notify/<string:paper_id>/<int:force>', methods=['POST'])
-def notify_authors(paper_id, force=0):
-    if flask.session.get('logged_in'):
-        record = Biorxiv.query.filter_by(id=paper_id).first()
-        if not record:
-            return flask.jsonify(result=False, message="paper not found")
-
-        addr = record.author_contact.values()
-        addr = list(itertools.chain.from_iterable(addr))
-        # don't bother everyone if there are a ton of authors
-        if len(addr) > 6:
-            addr = [*addr[:2], *addr[-3:]]
-
-        if addr is [] or '@' not in "".join(addr):
-            return flask.jsonify(result=False,
-                message="mangled or missing email addresses")
-
-        if force != 1 and record.email_sent == 1:
-            return flask.jsonify(result=False,
-                message="email already sent. use the cli to send another")
-
-        msg = Message(
-            "[JetFighter] bioRxiv manuscript {}".format(record.id),
-            recipients=addr,
-            reply_to=app.config['MAIL_REPLY_TO'])
-        msg.body = flask.render_template("email_notification.txt",
-            paper_id=paper_id,
-            pages=record.pages_str,
-            title=record.title,
-            detail_url=flask.url_for('show_details', paper_id=paper_id))
-        mail.send(msg)
-
-        record.email_sent = 1
-        db.session.merge(record)
-        db.session.commit()
-
-        return flask.jsonify(result=True, message="successfully sent")
-    else:
-        return flask.jsonify(result=False, message="not logged in")
-
-@app.route('/toggle/<string:paper_id>', methods=['POST'])
-def toggle_status(paper_id):
-    if flask.session.get('logged_in'):
-        record = Biorxiv.query.filter_by(id=paper_id).first()
-        if not record:
-            return flask.jsonify(result=False, message="paper not found")
-        if record.parse_status > 0:
-            record.parse_status = -2
-        elif record.parse_status < 0:
-            record.parse_status = 2
-        else:
-            return flask.jsonify(result=False, message="Not yet parsed")
-        db.session.merge(record)
-        db.session.commit()
-
-        return flask.jsonify(result=True, message="successfully changed")
-    else:
-        return flask.jsonify(result=False, message="not logged in")
-
-"""
-@app.route('/rerun', methods=['GET', 'POST'])
-@app.route('/rerun/<string:paper_id>', methods=['POST'])
-def rerun_web(paper_id=None):
-    ""Requeue jobs from the web interface
-
-    If only a single paper, then do this synchronously.
-    If all (i.e. paper_id == None), then do this on the queue
-    to avoid delaying the redirect.
-
-    ""
-    if flask.session.get('logged_in'):
-        if paper_id is None:
-            _rerun.queue(paper_id)
-            flask.flash("Rerun job has been queued")
-            return flask.redirect('/')
-        else:
-            n_queue = _rerun(paper_id)
-            if n_queue == -1:
-                message = "Paper not found"
-            else:
-                message = "Paper has been queued"
-
-            if flask.request.method == 'GET':
-                flask.flash(message)
-                return flask.redirect('/')
-            return flask.jsonify(result=n_queue != -1, message=message)
-    else:
-        flask.flash("Not logged in")
-        return flask.redirect('/login')
-"""
 
 @app.route('/login', methods=['GET', 'POST'])
 def admin_login():
@@ -361,36 +184,224 @@ def retrieve_timeline():
         parse_tweet(t)
 
 
-@rq.job(timeout='30m')
-def process_paper(obj):
+#@rq.job(timeout='30m')
+def process_paper(bioRxiv_preprint):
     """
-    Processes preprint starting from bioRxiv preprint object
+    Processes bioRxiv preprint
 
-    1. get object, find page count and posted date
+    1. download PDF 
+    2. find page count and posted date
     3. detect revision suggestion
-    3. if suggestion found, queue test email
-    4. update database entry
+    4. TODO: if suggestion found, queue test email 
     """
-    print('Processing: ' + obj.id)
-    obj = db.session.merge(obj)
-    download_biorxiv_PDF_from_ID(obj.id)
+    print('Processing: ' + bioRxiv_preprint.id)
+    bioRxiv_preprint = db.session.merge(bioRxiv_preprint)
     
-    if obj.page_count == 0:
-        obj.page_count = count_pages(obj.id)
-    if obj.posted_date == "":
-        obj.posted_date = find_date(obj.id)
-    if obj.author_contact is None:
-        obj.author_contact = find_authors(obj.id)['corr'][0] # TODO: grab all corresponding author(s)
-    if obj.page_count > 0:
-        obj.parse_status = 1
+    # TODO: check if PDF already exists before downloading again
+    download_biorxiv_PDF_from_ID(bioRxiv_preprint.id)
+    
+
+    bioRxiv_preprint.page_count = count_pages(bioRxiv_preprint.id)
+    bioRxiv_preprint.posted_date = find_date(bioRxiv_preprint.id)
+    bioRxiv_preprint.author_contact = find_authors(bioRxiv_preprint.id)['corr'][0] # TODO: grab all corresponding author(s)
+
+    if bioRxiv_preprint.page_count > 0:
+        bioRxiv_preprint.parse_status = 1 # success
     else:
-        obj.parse_status = -1    
+        bioRxiv_preprint.parse_status = -1 # failed
     
-    db.session.merge(obj)
+    db.session.merge(bioRxiv_preprint)
     db.session.commit()
 
+def notify_authors(paper_id, force=0):
+    if flask.session.get('logged_in'):
+        record = Biorxiv.query.filter_by(id=paper_id).first()
+        if not record:
+            return flask.jsonify(result=False, message="paper not found")
 
-## NOTE: NEEDS WORK
+        addr = record.author_contact.values()
+        addr = list(itertools.chain.from_iterable(addr))
+        # don't bother everyone if there are a ton of authors
+        if len(addr) > 6:
+            addr = [*addr[:2], *addr[-3:]]
+
+        if addr is [] or '@' not in "".join(addr):
+            return flask.jsonify(result=False,
+                message="mangled or missing email addresses")
+
+        if force != 1 and record.email_sent == 1:
+            return flask.jsonify(result=False,
+                message="email already sent. use the cli to send another")
+
+        msg = Message(
+            "[JetFighter] bioRxiv manuscript {}".format(record.id),
+            recipients=addr,
+            reply_to=app.config['MAIL_REPLY_TO'])
+        msg.body = flask.render_template("email_notification.txt",
+            paper_id=paper_id,
+            pages=record.pages_str,
+            title=record.title,
+            detail_url=flask.url_for('show_details', paper_id=paper_id))
+        mail.send(msg)
+
+        record.email_sent = 1
+        db.session.merge(record)
+        db.session.commit()
+
+        return flask.jsonify(result=True, message="successfully sent")
+    else:
+        return flask.jsonify(result=False, message="not logged in")
+
+
+
+
+
+#not using right now: img stuff
+        
+@app.route('/toggle/<string:paper_id>', methods=['POST'])
+def toggle_status(paper_id):
+    if flask.session.get('logged_in'):
+        record = Biorxiv.query.filter_by(id=paper_id).first()
+        if not record:
+            return flask.jsonify(result=False, message="paper not found")
+        if record.parse_status > 0:
+            record.parse_status = -2
+        elif record.parse_status < 0:
+            record.parse_status = 2
+        else:
+            return flask.jsonify(result=False, message="Not yet parsed")
+        db.session.merge(record)
+        db.session.commit()
+
+        return flask.jsonify(result=True, message="successfully changed")
+    else:
+        return flask.jsonify(result=False, message="not logged in")    
+    
+@app.route('/detail/<string:paper_id>')
+def show_details(paper_id, prepost=1, maxshow=10):
+    """
+    """
+    record = Biorxiv.query.filter_by(id=paper_id).first()
+    if not record:
+        flask.flash('Sorry! Results with that ID have not been found')
+        return flask.redirect('/')
+
+    # Format colormap for viewing
+    df_cm = record.parse_data
+    if df_cm.size > 0:
+        df_cm['fn'] = df_cm['fn'].astype(str)
+        if df_cm['fn'].str.contains('-').any():
+            df_cm['fn'] = df_cm['fn'].str.split('-', n=1).str[1]
+        df_cm['pct_cm'] = df_cm['pct_cm'] * 100
+        df_cm['pct_page'] = df_cm['pct_page'] * 100
+    df_cm = df_cm[['cm', 'fn', 'pct_cm', 'pct_page']]
+    df_cm.rename(columns={
+        'fn': 'Page',
+        'cm': 'Colormap Abbreviation',
+        'pct_cm': 'Colormap Coverage (%)',
+        'pct_page': 'Page Coverage (%)',
+    }, inplace=True)
+
+    cm_table = df_cm.to_html(bold_rows=False, index=False, border=0,
+        table_id="cm_parse_table", float_format='%.2f')
+
+    # display images
+    return flask.render_template('detail.html',
+        paper_id=record.id, title=record.title, url=record.url,
+        pages=", ".join([str(p) for p in record.pages]),
+        parse_status=record.parse_status, email_sent=record.email_sent,
+        cm_parse_html=cm_table
+        )
+
+@app.route('/notify/<string:paper_id>', methods=['POST'])
+@app.route('/notify/<string:paper_id>/<int:force>', methods=['POST'])
+
+@app.route('/pages/<string:paper_id>')
+def pages(paper_id, prepost=1, maxshow=10):
+    """Pages to show for preview
+    1-index I think...
+    """
+    record = Biorxiv.query.filter_by(id=paper_id).first()
+    if not record:
+        return flask.jsonify({})
+
+    pages = record.pages
+    page_count = record.page_count
+
+    # Unused, reconsider later...?
+    # # find pages before and after (requested or default)
+    # try:
+    #     prepost = math.fabs(int(flask.request.args.get('prepost')))
+    # except:
+    #     pass
+    # try:
+    #     maxshow = math.fabs(int(flask.request.args.get('maxshow')))
+    # except:
+    #     pass
+
+    # if requested, show all pages with each page's status
+    try:
+        all_pages = flask.request.args.get('all') == "1"
+    except:
+        all_pages = False
+
+    show_pgs = {}
+    if all_pages:
+        for i in range(1, page_count + 1):
+            if i in pages:
+                show_pgs[i] = True
+            else:
+                show_pgs[i] = False
+    elif pages:
+        # add all detected pages up to maxshow count
+        show_pgs = {i:True for i in pages[:maxshow]}
+        # pad with undetected pages
+        for i in pages:
+            for j in range(i - prepost, min(i + prepost + 1, page_count)):
+                if len(show_pgs) < maxshow:
+                    if j not in pages:
+                        show_pgs[j] = False
+                else:
+                    break
+    else:
+        show_pgs = {i:False for i in range(1, maxshow + 1)}
+
+    return flask.jsonify({'pdf_url': record.pdf_url, 'pages': show_pgs})
+
+
+## TODO: job queueing
+# @app.route('/rerun', methods=['GET', 'POST'])
+#@app.route('/rerun/<string:paper_id>', methods=['POST'])
+#def rerun_web(paper_id=None):
+#    ""Requeue jobs from the web interface
+#
+#    If only a single paper, then do this synchronously.
+#    If all (i.e. paper_id == None), then do this on the queue
+#    to avoid delaying the redirect.
+#
+#    ""
+#    if flask.session.get('logged_in'):
+#        if paper_id is None:
+#            _rerun.queue(paper_id)
+#            flask.flash("Rerun job has been queued")
+#            return flask.redirect('/')
+#        else:
+#            n_queue = _rerun(paper_id)
+#            if n_queue == -1:
+#                message = "Paper not found"
+#            else:
+#                message = "Paper has been queued"
+#
+#            if flask.request.method == 'GET':
+#                flask.flash(message)
+#                return flask.redirect('/')
+#            return flask.jsonify(result=n_queue != -1, message=message)
+#    else:
+#        flask.flash("Not logged in")
+#        return flask.redirect('/login')
+#"""
+
+## TODO: testing
 #@pytest.fixture()
 #def test_setup_cleanup():
     # should only be one, but... just in case
@@ -425,6 +436,7 @@ def process_paper(obj):
 #    assert set(authors['all']) == set([
 #        'o.borkowski@imperial.ac.uk', 'carlos.bricio@gmail.com',
 #        'g.stan@imperial.ac.uk', 't.ellis@imperial.ac.uk'])
+
 
 if __name__ == "__main__":
     app.run(debug=True, threaded=True, use_reloader=True)
